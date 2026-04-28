@@ -5,8 +5,7 @@ import { initDB } from '../../database/init';
 import db from "../../database/db";        // adjust path if needed
 import app from "../../services/firebase"; // adjust path if needed
 
-import { addCustomer, getCustomers } from "../../database/service";
-import { addTransaction, addItems } from "../../database/service";
+import { addCustomer, getCustomers, addTransaction, addItems } from "../../database/service";
 
 export default function HomeScreen() {
 
