@@ -1,98 +1,203 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState , useEffect } from "react";
+import { View, Text, TextInput, Button, StyleSheet, FlatList } from "react-native";
+import { initDB } from '../../database/init';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import db from "../../database/db";        // adjust path if needed
+import app from "../../services/firebase"; // adjust path if needed
+
+import { addCustomer, getCustomers } from "../../database/service";
+import { addTransaction, addItems } from "../../database/service";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+  useEffect(() => {
+    initDB();
+
+    const testDB = async () => {
+      await addCustomer({
+        id: Date.now().toString(),
+        name: "Test User",
+        balance: 0,
+      });
+
+    const customers = await getCustomers();
+    console.log("Customers:", customers);
+  };
+  testDB();
+  }, []);
+  
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [entries, setEntries] = useState<any[]>([]);
+  const [items, setItems] = useState<{ name: string; amount: string }[]>([]);
+  const [useItems, setUseItems] = useState(false);
+
+  console.log("DB:", db);
+  console.log("Firebase:", app);
+
+  const addEntry = async () => {
+    if (!name) return;
+
+  let finalAmount = 0;
+
+  if (useItems) {
+    finalAmount = calculateTotal();
+  } else {
+    finalAmount = Number(amount);
+  }
+
+  if (!finalAmount || isNaN(finalAmount)) return;
+
+  const transactionId = Date.now().toString();
+
+  await addTransaction({
+    id: transactionId,
+    customer_id: "TEMP_ID",
+    type: "udhaar",
+    amount: finalAmount,
+    date: Date.now(),
+  });
+
+  if (useItems) {
+    const formattedItems = items.map((item) => ({
+      id: Date.now().toString() + Math.random(),
+      transaction_id: transactionId,
+      name: item.name,
+      amount: Number(item.amount),
+    }));
+
+    await addItems(formattedItems);
+  }
+
+  // 🔥 ADD THIS (IMPORTANT)
+  const newEntry = {
+    id: transactionId,
+    name,
+    amount: finalAmount,
+  };
+
+  setEntries([newEntry, ...entries]);
+
+  // reset
+  setItems([]);
+  setAmount("");
+  setName("");
+  };
+
+  const addItem = () => {
+    setItems([...items, { name: "", amount: "" }]);
+  };
+
+  const updateItem = (index: number, field: "name" | "amount", value: string) => {
+    const updated = [...items];
+    updated[index][field] = value;
+    setItems(updated);
+  };
+
+  const calculateTotal = () => {
+    return items.reduce((sum, item) => {
+      const amt = Number(item.amount);
+      return sum + (isNaN(amt) ? 0 : amt);
+    }, 0);
+  };
+
+  return (
+  <View style={styles.container}>
+    <Text style={styles.title}>📒 Udhaar App (Test)</Text>
+
+    {/* Customer Name */}
+    <TextInput
+      placeholder="Customer Name"
+      value={name}
+      onChangeText={setName}
+      style={styles.input}
+    />
+
+    {/* Toggle Mode */}
+    <Button
+      title={useItems ? "Switch to Simple Entry" : "Switch to Item Entry"}
+      onPress={() => setUseItems(!useItems)}
+    />
+
+    {/* 🔹 Simple Amount Mode */}
+    {!useItems && (
+      <TextInput
+        placeholder="Amount"
+        value={amount}
+        onChangeText={setAmount}
+        keyboardType="numeric"
+        style={styles.input}
+      />
+    )}
+
+    {/* 🔹 Item-Based Mode */}
+    {useItems && (
+      <>
+        {items.map((item, index) => (
+          <View key={index}>
+            <TextInput
+              placeholder="Item name"
+              value={item.name}
+              onChangeText={(text) => updateItem(index, "name", text)}
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Amount"
+              value={item.amount}
+              keyboardType="numeric"
+              onChangeText={(text) => updateItem(index, "amount", text)}
+              style={styles.input}
+            />
+          </View>
+        ))}
+
+        <Button title="Add Item" onPress={addItem} />
+
+        <Text style={{ marginVertical: 10, fontWeight: "bold" }}>
+          Total: ₹ {calculateTotal()}
+        </Text>
+      </>
+    )}
+
+    {/* Add Entry */}
+    <Button title="Add Entry" onPress={addEntry} />
+
+    {/* Temporary List (for testing) */}
+    <FlatList
+      data={entries}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <View style={styles.entry}>
+          <Text>{item.name}</Text>
+          <Text>₹ {item.amount}</Text>
+        </View>
+      )}
+    />
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    padding: 20,
+    marginTop: 40,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  input: {
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+  },
+  entry: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 10,
+    borderBottomWidth: 1,
   },
 });
